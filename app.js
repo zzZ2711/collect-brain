@@ -282,7 +282,7 @@
           tags: Array.isArray(s.tags) ? s.tags : [],
           note: s.note || "",
           url: s.url || "",
-          bucket: rebucketByKeywords(s.title, s.note, s.bucket === "存宝" ? null : s.bucket) || "实用",
+          bucket: rebucketByKeywords(s.title, s.note),
           source: s.source || "",
           createdAt: Date.now(),
           localOnly: true,
@@ -328,6 +328,7 @@
     "母婴": ["宝宝", "育儿", "母婴", "怀孕", "辅食", "早教"],
     "健康": ["养生", "健康", "睡眠", "调理", "中医", "维生素", "体检"],
     "搞笑": ["搞笑", "沙雕", "段子", "笑死", "迷惑行为"],
+    "追星": ["cp向", "cp", "reaction", "反应视频", "偶像", "追星", "饭圈", "粉丝", "物料", "妆造", "同人", "广播剧", "看似be实则he", "看似he实则be", "be结局", "he结局", "happy ending", "bad ending", "剪辑", "舞台", "直拍", "个人向", "双人舞", "电话粥", "reaction视频"],
   };
   function classifyByKeywords(text) {
     if (!text) return null;
@@ -348,8 +349,25 @@
     return { bucket: "实用", type: "其他" };
   }
   // 仅按关键词重算收藏夹（用于演示数据/历史数据整理，无需 embedding）
-  function rebucketByKeywords(title, note, fallback) {
-    return classifyByKeywords((title || "") + " " + (note || "")) || fallback || "实用";
+  function rebucketByKeywords(title, note) {
+    // 永远忽略旧的「存宝」桶名（seed_data.json 残留），无关键词命中统一兜底「实用」
+    return classifyByKeywords((title || "") + " " + (note || "")) || "实用";
+  }
+  // 把所有现存笔记重新跑一次关键词归类并写回 IDB（修复历史脏数据，如残留的「存宝」）
+  async function rebucketAll() {
+    let changed = 0;
+    for (const it of items) {
+      const next = rebucketByKeywords(it.title, it.note);
+      if (next && next !== it.bucket) {
+        it.bucket = next;
+        await idbPut(it);
+        try { await db.collection(COLL).doc(it._id).update({ bucket: next }); } catch (e) { /* 离线/无云 忽略 */ }
+        changed++;
+      }
+    }
+    buildFilters(); render();
+    toast(changed ? `已整理 ${changed} 条笔记的收藏夹` : "收藏夹已是最新，无需整理");
+    return changed;
   }
 
   // ---- 渲染 ----
@@ -380,6 +398,13 @@
       });
       $filters.appendChild(clear);
     }
+    // 始终提供「整理收藏夹」按钮：把当前所有笔记重新跑一次关键词归类（修复旧版脏数据）
+    const tidy = document.createElement("button");
+    tidy.className = "filter-chip tidy";
+    tidy.textContent = "🔄 整理收藏夹";
+    tidy.title = "把所有笔记重新归类（如修复早期残留的「存宝」等旧桶名）";
+    tidy.addEventListener("click", async () => { await rebucketAll(); });
+    $filters.appendChild(tidy);
   }
   function paint(ranked) {
     $results.innerHTML = "";

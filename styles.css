@@ -63,6 +63,7 @@ body {
 }
 .filter-chip.is-active { background: var(--primary); color: #fff; border-color: var(--primary); }
 .filter-chip.clear-demo { color: var(--danger); border-color: #f3c2c4; }
+.filter-chip.tidy { color: #5b6ee1; border-color: #d4d8ee; }
 
 /* 头部操作区 */
 .header-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
