@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>收藏大脑 · 扫码导入</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="recv" class="boot">
+    <div class="boot-card" style="max-width:420px">
+      <div class="boot-title">收藏大脑 · 扫码导入</div>
+      <div id="recv-msg" class="boot-msg">正在解析分享链接…</div>
+      <div class="boot-bar"><div id="recv-bar-fill" class="boot-bar-fill"></div></div>
+      <div id="recv-detail" class="recv-detail"></div>
+    </div>
+  </div>
+
+  <!-- 自托管依赖：二维码解压用的 pako -->
+  <script src="lib/pako/pako.min.js"></script>
+  <!-- transformers.js（自托管 ESM，离线向量化）-->
+  <script type="module">
+    try {
+      const mod = await import("./lib/transformers/transformers.js");
+      window.transformers = mod;
+      window.dispatchEvent(new Event("transformers-ready"));
+    } catch (e) {
+      console.error("transformers.js 加载失败", e);
+      window.dispatchEvent(new Event("transformers-ready"));
+    }
+  </script>
+  <script src="recv.js"></script>
+</body>
+</html>

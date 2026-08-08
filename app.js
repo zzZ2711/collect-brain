@@ -30,6 +30,14 @@
   const $fab = document.getElementById("fab");
   const $btnImport = document.getElementById("btn-import");
   const $fileInput = document.getElementById("file-input");
+  const $btnQr = document.getElementById("btn-qr");
+  const $qrModal = document.getElementById("qr-modal");
+  const $qrList = document.getElementById("qr-list");
+  const $qrGenerate = document.getElementById("qr-generate");
+  const $qrResult = document.getElementById("qr-result");
+  const $qrImg = document.getElementById("qr-img");
+  const $qrLink = document.getElementById("qr-link");
+  const $qrWarn = document.getElementById("qr-warn");
   const $modal = document.getElementById("modal");
   const $form = document.getElementById("add-form");
   const $fTitle = document.getElementById("f-title");
@@ -453,6 +461,70 @@
       $btnImport.textContent = "导入 JSON";
     }
   });
+  // ---- 扫码导入手机 ----
+  function openQrModal() {
+    $qrResult.hidden = true; $qrImg.innerHTML = ""; $qrWarn.hidden = true;
+    $qrList.innerHTML = "";
+    if (!items.length) { toast("还没有收藏可分享"); return; }
+    // 最多展示最近 60 条供勾选
+    const list = items.slice(0, 60);
+    for (const it of list) {
+      const row = document.createElement("label");
+      row.className = "qr-row";
+      const cb = document.createElement("input");
+      cb.type = "checkbox"; cb.value = it._id; cb.checked = true;
+      const span = document.createElement("span");
+      span.textContent = (it.title || "(无标题)").slice(0, 50) + (it.isDemo ? " · 示例" : "");
+      row.appendChild(cb); row.appendChild(span);
+      $qrList.appendChild(row);
+    }
+    $qrModal.hidden = false;
+  }
+  function closeQrModal() { $qrModal.hidden = true; }
+  function bytesToB64url(bytes) {
+    let bin = "";
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+  $btnQr.addEventListener("click", openQrModal);
+  $qrModal.querySelectorAll("[data-qr-close]").forEach((el) => el.addEventListener("click", closeQrModal));
+  $qrGenerate.addEventListener("click", () => {
+    const ids = Array.from($qrList.querySelectorAll("input:checked")).map((c) => c.value);
+    const sel = items.filter((i) => ids.includes(i._id));
+    if (!sel.length) { toast("请至少勾选一条"); return; }
+    const compact = sel.map((i) => ({
+      title: i.title || "", note: i.note || "", author: i.author || "",
+      url: i.url || "", type: i.type || "", bucket: i.bucket || "",
+      tags: Array.isArray(i.tags) ? i.tags : [],
+    }));
+    const json = JSON.stringify(compact);
+    const gz = pako.gzip(new TextEncoder().encode(json));
+    const payload = bytesToB64url(gz);
+    const url = location.origin + location.pathname.replace(/[^/]*$/, "") + "recv.html#" + payload;
+    $qrLink.href = url; $qrLink.textContent = url.length > 60 ? url.slice(0, 57) + "…" : url;
+    // 二维码容量上限（约 2900 字节），超限提示用链接代替
+    const QR_MAX = 2200;
+    $qrImg.innerHTML = "";
+    if (payload.length <= QR_MAX) {
+      const typeNumber = 0; // 自动选择版本
+      const qr = qrcode(typeNumber, "L");
+      qr.addData(payload);
+      qr.make();
+      $qrImg.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 8 });
+      $qrWarn.hidden = true;
+    } else {
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("width", "180"); svg.setAttribute("height", "180");
+      svg.innerHTML = '<rect width="180" height="180" fill="#fff" stroke="#ddd"/><text x="90" y="90" text-anchor="middle" font-size="14" fill="#333">数据过大</text>';
+      $qrImg.appendChild(svg);
+      $qrWarn.hidden = false;
+      $qrWarn.textContent = "所选收藏经压缩后仍超过二维码容量，请改用下方链接（手机点开即可导入）。";
+    }
+    $qrResult.hidden = false;
+    // 复制链接到剪贴板（手机同设备可直接点）
+    try { navigator.clipboard && navigator.clipboard.writeText(url); } catch (e) {}
+  });
+
   function toast(msg) {
     $toast.textContent = msg; $toast.hidden = false;
     clearTimeout(toast._t); toast._t = setTimeout(() => ($toast.hidden = true), 2200);

@@ -27,6 +27,7 @@
     </div>
     <div id="filters" class="filters"></div>
     <div class="header-actions">
+      <button id="btn-qr" class="header-btn">扫码导入手机</button>
       <button id="btn-import" class="header-btn">导入 JSON</button>
       <input id="file-input" type="file" accept="application/json,.json" hidden />
     </div>
@@ -78,6 +79,28 @@
     </div>
   </div>
 
+  <!-- 扫码导入手机：选择收藏 -> 压缩 -> 生成二维码 -->
+  <div id="qr-modal" class="modal" hidden>
+    <div class="modal-mask" data-qr-close></div>
+    <div class="modal-panel qr-panel">
+      <div class="modal-head">
+        <span>扫码导入手机</span>
+        <button class="modal-x" data-qr-close aria-label="关闭">×</button>
+      </div>
+      <p class="qr-hint">勾选要发到手机的收藏（二维码容量有限，建议 ≤ 30 条），手机扫码后自动导入。</p>
+      <div id="qr-list" class="qr-list"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn ghost" data-qr-close>取消</button>
+        <button type="button" class="btn primary" id="qr-generate">生成二维码</button>
+      </div>
+      <div id="qr-result" class="qr-result" hidden>
+        <div id="qr-img" class="qr-img"></div>
+        <p class="qr-tip">用手机扫描上方二维码，或在手机浏览器打开：<a id="qr-link" href="#" target="_blank" rel="noopener"></a></p>
+        <p id="qr-warn" class="qr-warn" hidden></p>
+      </div>
+    </div>
+  </div>
+
   <div id="toast" class="toast" hidden></div>
 
   <!-- transformers.js（自托管 ESM，离线可用）-->
@@ -103,6 +126,8 @@
       window.dispatchEvent(new Event("cloudbase-ready"));
     }
   </script>
+  <script src="lib/pako/pako.min.js"></script>
+  <script src="lib/qrcode/qrcode.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
