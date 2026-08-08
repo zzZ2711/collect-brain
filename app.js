@@ -165,7 +165,7 @@
     try {
       const T = window.transformers;
       if (!T) throw new Error("transformers.js 未加载");
-      classifier = await T.pipeline("image-classification", "mobilenetv2-1.0-224", {
+      classifier = await T.pipeline("image-classification", "vit-base-patch16-224", {
         quantized: true,
         progress_callback: (p) => {
           if (p && p.status === "progress" && p.total) {
