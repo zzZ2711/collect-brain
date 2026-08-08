@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#6d28d9" />
+  <title>收藏大脑</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- 启动遮罩：语义模型首次加载较慢 -->
+  <div id="boot" class="boot">
+    <div class="boot-card">
+      <div class="boot-spinner"></div>
+      <div class="boot-title">收藏大脑</div>
+      <div id="boot-msg" class="boot-msg">正在初始化语义模型…</div>
+      <div class="boot-bar"><div id="boot-bar-fill" class="boot-bar-fill"></div></div>
+    </div>
+  </div>
+
+  <header class="app-header">
+    <h1 class="app-title">收藏大脑</h1>
+    <div class="search-wrap">
+      <input id="search" class="search-input" type="search" placeholder="语义搜索你的收藏…" autocomplete="off" />
+    </div>
+    <div id="filters" class="filters"></div>
+  </header>
+
+  <main class="results" id="results"></main>
+
+  <div id="empty" class="empty-state" hidden>
+    <p>没有匹配的收藏</p>
+  </div>
+
+  <button id="fab" class="fab" aria-label="添加笔记">＋</button>
+
+  <!-- 添加笔记弹层 -->
+  <div id="modal" class="modal" hidden>
+    <div class="modal-mask" data-close></div>
+    <div class="modal-panel">
+      <div class="modal-head">
+        <span>添加笔记</span>
+        <button class="modal-x" data-close aria-label="关闭">×</button>
+      </div>
+      <form id="add-form" class="add-form">
+        <label class="field">
+          <span>标题</span>
+          <input id="f-title" type="text" maxlength="120" placeholder="一句话概括" required />
+        </label>
+        <label class="field">
+          <span>内容 / 笔记</span>
+          <textarea id="f-note" rows="4" maxlength="2000" placeholder="记下要点，保存后会自动归类"></textarea>
+        </label>
+        <div class="auto-cat" id="auto-cat">自动分类：分析中…</div>
+        <div class="modal-actions">
+          <button type="button" class="btn ghost" data-close>取消</button>
+          <button type="submit" class="btn primary" id="save-btn">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <!-- transformers.js（自托管 ESM，离线可用）-->
+  <script type="module">
+    try {
+      const mod = await import("./lib/transformers/transformers.js");
+      window.transformers = mod;
+      window.dispatchEvent(new Event("transformers-ready"));
+    } catch (e) {
+      console.error("transformers.js 加载失败", e);
+      window.dispatchEvent(new Event("transformers-ready"));
+    }
+  </script>
+
+  <!-- CloudBase Web SDK（jsDelivr +esm 自动打包，浏览器可直接 import）-->
+  <script type="module">
+    try {
+      const mod = await import("https://cdn.jsdelivr.net/npm/@cloudbase/js-sdk@2.9.0/+esm");
+      window.cloudbase = mod && mod.default ? mod.default : mod;
+      window.dispatchEvent(new Event("cloudbase-ready"));
+    } catch (e) {
+      console.warn("CloudBase SDK 加载失败，进入本地模式", e);
+      window.dispatchEvent(new Event("cloudbase-ready"));
+    }
+  </script>
+  <script src="app.js"></script>
+</body>
+</html>
