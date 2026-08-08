@@ -24,6 +24,9 @@
   const $filters = document.getElementById("filters");
   const $results = document.getElementById("results");
   const $empty = document.getElementById("empty");
+  const $firstrun = document.getElementById("firstrun");
+  const $btnAddMine = document.getElementById("btn-add-mine");
+  const $btnLoadDemo = document.getElementById("btn-load-demo");
   const $fab = document.getElementById("fab");
   const $modal = document.getElementById("modal");
   const $form = document.getElementById("add-form");
@@ -193,6 +196,7 @@
           localOnly: true,
         };
         doc.embedding = embs[j];
+        doc.isDemo = true;
         await idbPut(doc);
       }
       const pct = Math.min(100, Math.round(((i + B) / seed.length) * 100));
@@ -226,6 +230,22 @@
       chip.addEventListener("click", () => { currentFilter = b; buildFilters(); render(); });
       $filters.appendChild(chip);
     }
+    // 存在示例数据时才显示「清空示例」按钮
+    const hasDemo = items.some((i) => i.isDemo);
+    if (hasDemo) {
+      const clear = document.createElement("button");
+      clear.className = "filter-chip clear-demo";
+      clear.textContent = "清空示例";
+      clear.addEventListener("click", async () => {
+        if (!confirm("确定清空全部示例收藏？（你自己的收藏不受影响）")) return;
+        const demos = items.filter((i) => i.isDemo);
+        for (const d of demos) { await idbDelete(d._id); await removeFromCloud(d._id); }
+        items = items.filter((i) => !i.isDemo);
+        buildFilters(); render();
+        toast("已清空示例收藏");
+      });
+      $filters.appendChild(clear);
+    }
   }
   function paint(ranked) {
     $results.innerHTML = "";
@@ -246,12 +266,13 @@
       const meta = document.createElement("div"); meta.className = "card-meta";
       if (i.type) { const t = document.createElement("span"); t.className = "tag"; t.textContent = i.type; meta.appendChild(t); }
       if (i.bucket) { const b = document.createElement("span"); b.className = "bucket"; b.textContent = "· " + i.bucket; meta.appendChild(b); }
+      if (i.isDemo) { const d = document.createElement("span"); d.className = "demo-tag"; d.textContent = "示例"; meta.appendChild(d); }
       if (i.author) { const a = document.createElement("span"); a.className = "card-author"; a.textContent = "by " + i.author; meta.appendChild(a); }
       if (r.score != null && r.score < 1) { const s = document.createElement("span"); s.className = "score"; s.textContent = "相似度 " + (r.score * 100).toFixed(0) + "%"; meta.appendChild(s); }
       card.appendChild(meta);
       if (i.url) card.addEventListener("click", () => window.open(i.url, "_blank"));
       const del = document.createElement("button");
-      del.textContent = "删除";
+      del.textContent = i.isDemo ? "删除示例" : "删除";
       del.style.cssText = "margin-top:10px;font-size:12px;color:#e5484d;background:none;border:none;cursor:pointer;padding:0;";
       del.addEventListener("click", (e) => { e.stopPropagation(); deleteItem(i); });
       card.appendChild(del);
@@ -263,6 +284,14 @@
     if (q) { searchAndRender(q, currentFilter); return; }
     let list = items;
     if (currentFilter !== "全部") list = list.filter((i) => i.bucket === currentFilter);
+    // 空列表：未搜索且当前无数据时，展示首次引导（而非误导性的「没有匹配」）
+    if (!list.length && currentFilter === "全部") {
+      $firstrun.hidden = false;
+      $empty.hidden = true;
+      $results.innerHTML = "";
+      return;
+    }
+    $firstrun.hidden = true;
     const ranked = list.map((i) => ({ i, score: 1 }));
     ranked.sort((a, b) => (b.i.createdAt || 0) - (a.i.createdAt || 0));
     paint(ranked.slice(0, 100));
@@ -340,6 +369,26 @@
   function closeModal() { $modal.hidden = true; }
   $fab.addEventListener("click", openModal);
   $modal.querySelectorAll("[data-close]").forEach((el) => el.addEventListener("click", closeModal));
+
+  // ---- 首次引导按钮 ----
+  $btnAddMine.addEventListener("click", () => { $firstrun.hidden = true; openModal(); });
+  $btnLoadDemo.addEventListener("click", async () => {
+    $btnLoadDemo.disabled = true;
+    $btnLoadDemo.textContent = "正在加载示例…";
+    try {
+      await importSeed();
+      const cached = await idbAll();
+      items = cached;
+      buildFilters();
+      render();
+      toast("已载入 126 条示例收藏");
+    } catch (e) {
+      toast("示例加载失败，请重试");
+    } finally {
+      $btnLoadDemo.disabled = false;
+      $btnLoadDemo.textContent = "浏览示例收藏（126 条演示）";
+    }
+  });
   function toast(msg) {
     $toast.textContent = msg; $toast.hidden = false;
     clearTimeout(toast._t); toast._t = setTimeout(() => ($toast.hidden = true), 2200);
@@ -359,7 +408,8 @@
       await loadModel();
       $bootMsg.textContent = "正在准备本地索引…";
       let cached = await idbAll();
-      if (!cached.length) { await importSeed(); cached = await idbAll(); }
+      // 不再自动灌示例数据：新用户打开应是自己的空空间。
+      // 示例收藏改为由用户主动点击「浏览示例收藏」加载（标 isDemo）。
       items = cached;
       buildFilters();
       render();

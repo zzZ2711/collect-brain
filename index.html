@@ -34,6 +34,18 @@
     <p>没有匹配的收藏</p>
   </div>
 
+  <!-- 首次进入引导（区分「新用户」与「想看演示」）-->
+  <div id="firstrun" class="firstrun" hidden>
+    <div class="firstrun-card">
+      <div class="firstrun-emoji">🧠</div>
+      <h2 class="firstrun-title">欢迎使用收藏大脑</h2>
+      <p class="firstrun-sub">这是你的私人收藏空间。现在它是空的 —— 下面是两种开始方式：</p>
+      <button id="btn-add-mine" class="firstrun-btn primary">＋ 添加我的第一笔收藏</button>
+      <button id="btn-load-demo" class="firstrun-btn ghost">浏览示例收藏（126 条演示）</button>
+      <p class="firstrun-tip">提示：示例收藏仅供体验，标了「示例」标签，可随时单独删除。</p>
+    </div>
+  </div>
+
   <button id="fab" class="fab" aria-label="添加笔记">＋</button>
 
   <!-- 添加笔记弹层 -->
