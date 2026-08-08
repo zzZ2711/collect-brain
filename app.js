@@ -61,6 +61,8 @@
   let selectedImage = null;     // 当前选中的图片（DataURL / Blob URL）
   let items = [];
   let currentFilter = "全部";
+  let viewMode = "folders";   // "folders" | "list"
+  let currentFolder = null;   // 进入某个收藏夹后的明细
   let cloudReady = false;
   let db = null, auth = null;
   let pendingEmb = null;
@@ -280,7 +282,7 @@
           tags: Array.isArray(s.tags) ? s.tags : [],
           note: s.note || "",
           url: s.url || "",
-          bucket: s.bucket || "实用",
+          bucket: rebucketByKeywords(s.title, s.note, s.bucket === "存宝" ? null : s.bucket) || "实用",
           source: s.source || "",
           createdAt: Date.now(),
           localOnly: true,
@@ -307,6 +309,48 @@
     if (best) return { bucket: best.bucket, type: best.type, score: bestScore };
     return { bucket: "实用", type: "其他", score: 0 };
   }
+  // 关键词预分类：让空白用户也能自动归入常见小红书收藏夹（冷启动）
+  const BUCKET_KEYWORDS = {
+    "美食": ["美食", "食谱", "菜谱", "探店", "好吃", "餐厅", "餐馆", "烘焙", "奶茶", "咖啡", "火锅", "减脂餐", "做饭", "小吃", "甜点", "料理", "外卖", "餐厅推荐"],
+    "穿搭": ["穿搭", "搭配", "ootd", "显瘦", "衣服", "风格", "复古", "韩系", "日系", "卫衣", "牛仔裤", "穿衣服", "秋冬穿搭", "夏日穿搭"],
+    "美妆": ["化妆", "妆容", "美妆", "口红", "护肤", "面膜", "底妆", "眼影", "防晒", "粉底", "护肤步骤"],
+    "旅行": ["旅行", "旅游", "攻略", "景点", "出游", "机票", "民宿", "citywalk", "周边游", "打卡", "徒步", "露营", "海岛"],
+    "学习": ["学习", "考研", "考试", "英语", "笔记", "复习", "自我提升", "技能", "考证", "网课", "背单词", "读书笔记"],
+    "健身": ["健身", "运动", "减脂", "跑步", "瑜伽", "塑形", "训练", "增肌", "普拉提", "骑行"],
+    "家居": ["家居", "装修", "租房", "好物", "收纳", "布置", "软装", "家具", "卧室", "厨房改造"],
+    "萌宠": ["猫", "狗", "宠物", "萌宠", "铲屎", "猫咪", "狗狗", "养猫", "养狗"],
+    "数码": ["数码", "手机", "电脑", "app", "软件", "科技", "相机", "耳机", "键盘", "显示器", "平板", "ai", "gpt", "工具", "项目", "代码", "程序", "prompt", "chatgpt", "效率", "教程", "网站", "神器", "插件", "自动化"],
+    "职场": ["职场", "工作", "简历", "面试", "副业", "搞钱", "实习", "求职", "加薪", "汇报", "赚钱", "运营", "自媒体", "涨粉", "创业"],
+    "情感": ["恋爱", "情感", "婚姻", "关系", "脱单", "异地", "暧昧"],
+    "摄影": ["摄影", "拍照", "构图", "胶片", "滤镜", "人像", "风光", "手机摄影"],
+    "影视": ["电影", "追剧", "综艺", "影视", "剧集", "短片", "纪录片"],
+    "读书": ["书单", "读书", "阅读", "小说", "名著", "读后感"],
+    "母婴": ["宝宝", "育儿", "母婴", "怀孕", "辅食", "早教"],
+    "健康": ["养生", "健康", "睡眠", "调理", "中医", "维生素", "体检"],
+    "搞笑": ["搞笑", "沙雕", "段子", "笑死", "迷惑行为"],
+  };
+  function classifyByKeywords(text) {
+    if (!text) return null;
+    const t = text.toLowerCase();
+    for (const [bucket, kws] of Object.entries(BUCKET_KEYWORDS)) {
+      for (const kw of kws) { if (t.indexOf(kw.toLowerCase()) !== -1) return bucket; }
+    }
+    return null;
+  }
+  // 综合分类：关键词优先（冷启动即可用），无命中则用已有收藏的语义最近项，最后兜底「实用」
+  function resolveCategory(emb, title, note) {
+    const kw = classifyByKeywords((title || "") + " " + (note || ""));
+    if (kw) return { bucket: kw, type: "其他" };
+    if (emb && items.length) {
+      const c = autoClassify(emb);
+      if (c.score > 0.18) return { bucket: c.bucket, type: c.type };
+    }
+    return { bucket: "实用", type: "其他" };
+  }
+  // 仅按关键词重算收藏夹（用于演示数据/历史数据整理，无需 embedding）
+  function rebucketByKeywords(title, note, fallback) {
+    return classifyByKeywords((title || "") + " " + (note || "")) || fallback || "实用";
+  }
 
   // ---- 渲染 ----
   function buildFilters() {
@@ -317,7 +361,7 @@
       const chip = document.createElement("button");
       chip.className = "filter-chip" + (b === currentFilter ? " is-active" : "");
       chip.textContent = b;
-      chip.addEventListener("click", () => { currentFilter = b; buildFilters(); render(); });
+      chip.addEventListener("click", () => { currentFilter = b; currentFolder = null; buildFilters(); render(); });
       $filters.appendChild(chip);
     }
     // 存在示例数据时才显示「清空示例」按钮
@@ -352,6 +396,12 @@
       }
       const h = document.createElement("div"); h.className = "card-title"; h.textContent = i.title || "(无标题)";
       card.appendChild(h);
+      if (i.image) {
+        const img = document.createElement("div");
+        img.className = "card-thumb";
+        img.style.backgroundImage = "url(" + i.image + ")";
+        card.appendChild(img);
+      }
       if (i.note) { const p = document.createElement("p"); p.className = "card-note"; p.textContent = i.note; card.appendChild(p); }
       const meta = document.createElement("div"); meta.className = "card-meta";
       if (i.type) { const t = document.createElement("span"); t.className = "tag"; t.textContent = i.type; meta.appendChild(t); }
@@ -372,20 +422,105 @@
   function render() {
     const q = $search.value.trim();
     if (q) { searchAndRender(q, currentFilter); return; }
+    if (viewMode === "folders") {
+      if (currentFolder) return renderFolderDetail(currentFolder);
+      return renderFolders();
+    }
+    // 列表模式
     let list = items;
     if (currentFilter !== "全部") list = list.filter((i) => i.bucket === currentFilter);
-    // 空列表：未搜索且当前无数据时，展示首次引导（而非误导性的「没有匹配」）
+    $firstrun.hidden = list.length > 0 || currentFilter !== "全部";
     if (!list.length && currentFilter === "全部") {
-      $firstrun.hidden = false;
       $empty.hidden = true;
       $results.innerHTML = "";
       return;
     }
-    $firstrun.hidden = true;
+    $empty.hidden = list.length > 0;
     const ranked = list.map((i) => ({ i, score: 1 }));
     ranked.sort((a, b) => (b.i.createdAt || 0) - (a.i.createdAt || 0));
     paint(ranked.slice(0, 100));
   }
+
+  // ---- 收藏夹视图（小红书收藏夹模式：文字标题 + 最近笔记缩略图）----
+  function bucketEmoji(bucket) {
+    const map = {
+      "美食": "🍜", "穿搭": "👗", "美妆": "💄", "旅行": "✈️", "学习": "📚",
+      "健身": "🏋️", "家居": "🛋️", "萌宠": "🐱", "数码": "💻", "职场": "💼",
+      "情感": "💞", "摄影": "📷", "影视": "🎬", "读书": "📖", "母婴": "🍼",
+      "健康": "🌿", "搞笑": "😂", "实用": "📌", "其他": "🗂️",
+    };
+    return map[bucket] || "🗂️";
+  }
+  function renderFolders() {
+    $firstrun.hidden = items.length > 0;
+    if (!items.length) { $results.innerHTML = ""; $empty.hidden = true; return; }
+    // 按 bucket 分组
+    const groups = {};
+    for (const it of items) {
+      const b = it.bucket || "实用";
+      (groups[b] = groups[b] || []).push(it);
+    }
+    const names = Object.keys(groups).sort((a, b) => groups[b].length - groups[a].length);
+    $results.innerHTML = "";
+    $empty.hidden = true;
+    for (const name of names) {
+      const arr = groups[name].slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      const folder = document.createElement("div");
+      folder.className = "folder-card";
+      const head = document.createElement("div");
+      head.className = "folder-head";
+      head.innerHTML =
+        '<span class="folder-emoji">' + bucketEmoji(name) + '</span>' +
+        '<span class="folder-name">' + escapeHtml(name) + '</span>' +
+        '<span class="folder-count">' + arr.length + '</span>';
+      folder.appendChild(head);
+      const grid = document.createElement("div");
+      grid.className = "folder-thumbs";
+      const preview = arr.slice(0, 4);
+      for (const it of preview) {
+        const t = document.createElement("div");
+        t.className = "folder-thumb";
+        if (it.image) {
+          t.style.backgroundImage = "url(" + it.image + ")";
+          t.classList.add("has-img");
+        } else {
+          t.textContent = (it.title || "无标题").slice(0, 2);
+        }
+        grid.appendChild(t);
+      }
+      if (arr.length > 4) {
+        const more = document.createElement("div");
+        more.className = "folder-thumb more";
+        more.textContent = "+" + (arr.length - 4);
+        grid.appendChild(more);
+      }
+      folder.appendChild(grid);
+      folder.addEventListener("click", () => { currentFolder = name; render(); });
+      $results.appendChild(folder);
+    }
+  }
+  function renderFolderDetail(name) {
+    $firstrun.hidden = true;
+    $empty.hidden = true;
+    const arr = items.slice().filter((i) => (i.bucket || "实用") === name)
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    $results.innerHTML = "";
+    const back = document.createElement("button");
+    back.className = "folder-back";
+    back.textContent = "‹ " + bucketEmoji(name) + " 返回收藏夹";
+    back.addEventListener("click", () => { currentFolder = null; render(); });
+    $results.appendChild(back);
+    const title = document.createElement("div");
+    title.className = "folder-detail-title";
+    title.textContent = name + " · " + arr.length + " 篇";
+    $results.appendChild(title);
+    const ranked = arr.map((i) => ({ i, score: 1 }));
+    paint(ranked.slice(0, 200));
+  }
+  function escapeHtml(s) {
+    return String(s || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
   async function searchAndRender(q, filter) {
     paint([{ i: {}, score: 0, skeleton: true }]);
     let emb;
@@ -427,11 +562,12 @@
       const note = $fNote.value.trim();
       let emb = pendingEmb;
       if (!emb) [emb] = await embed([title + (note ? " " + note : "")], false);
-      const cat = emb ? autoClassify(emb) : { bucket: "实用", type: "其他" };
+      const cat = resolveCategory(emb, title, note);
       const doc = {
         _id: "local_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7),
         title, note, author: "", type: cat.type, tags: [], url: "", bucket: cat.bucket,
         source: "", createdAt: Date.now(),
+        image: selectedImage || null,
       };
       doc.embedding = emb;
       await idbPut(doc);
@@ -529,6 +665,20 @@
   $fab.addEventListener("click", openModal);
   $modal.querySelectorAll("[data-close]").forEach((el) => el.addEventListener("click", closeModal));
 
+  // ---- 视图切换：收藏夹 / 全部列表 ----
+  const $viewToggle = document.getElementById("view-toggle");
+  $viewToggle.querySelectorAll("button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const mode = btn.getAttribute("data-mode");
+      if (mode === viewMode) return;
+      viewMode = mode;
+      currentFolder = null;
+      $viewToggle.querySelectorAll("button").forEach((b) => b.classList.toggle("is-active", b === btn));
+      buildFilters();
+      render();
+    });
+  });
+
   // ---- 首次引导按钮 ----
   $btnAddMine.addEventListener("click", () => { $firstrun.hidden = true; openModal(); });
   $btnLoadDemo.addEventListener("click", async () => {
@@ -583,14 +733,14 @@
           const d = slice[j];
           let cat = { bucket: d.bucket || "实用", type: d.type || "其他" };
           if (!d.bucket || !d.type) {
-            const c = autoClassify(embs[j]);
+            const c = resolveCategory(embs[j], d.title, d.note);
             cat = { bucket: d.bucket || c.bucket, type: d.type || c.type };
           }
           const doc = {
             _id: "imp_" + Date.now() + "_" + i + "_" + j + "_" + Math.random().toString(36).slice(2, 6),
             title: d.title, note: d.note, author: d.author, url: d.url,
             type: cat.type, tags: d.tags, bucket: cat.bucket, source: d.source,
-            createdAt: Date.now(),
+            createdAt: Date.now(), image: d.image || null,
           };
           doc.embedding = embs[j];
           await idbPut(doc);
@@ -680,7 +830,7 @@
   }
 
   let searchTimer;
-  $search.addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(render, 250); });
+  $search.addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { currentFolder = null; render(); }, 250); });
 
   // ---- 启动 ----
   async function start() {

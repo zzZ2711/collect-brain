@@ -112,6 +112,7 @@
             type: (d.type || "其他").toString().slice(0, 40),
             tags: Array.isArray(d.tags) ? d.tags.slice(0, 20) : [],
             bucket: (d.bucket || "实用").toString().slice(0, 40),
+            image: d.image || null,
             source: "qrcode",
             createdAt: Date.now(),
           };

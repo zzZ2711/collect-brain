@@ -80,6 +80,8 @@ body {
   box-shadow: var(--shadow); cursor: pointer;
 }
 .card-title { font-size: 16px; font-weight: 600; margin: 0 0 6px; line-height: 1.4; }
+.card-thumb { width: 100%; height: 150px; border-radius: 12px; margin-bottom: 10px;
+  background-size: cover; background-position: center; background-color: var(--primary-soft); }
 .card-note { font-size: 14px; color: #3a3a3c; line-height: 1.55; margin: 0 0 10px;
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .card-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
@@ -171,6 +173,49 @@ body {
 
 /* recv 落地页 */
 .recv-detail { margin-top: 14px; font-size: 12px; color: var(--muted); line-height: 1.5; word-break: break-all; }
+
+/* 视图切换（收藏夹 / 列表） */
+.view-toggle {
+  display: flex; gap: 0; margin-top: 12px; width: fit-content;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 3px;
+}
+.view-toggle button {
+  border: none; background: none; font-size: 13px; font-weight: 500;
+  color: var(--muted); padding: 6px 16px; border-radius: 999px; cursor: pointer;
+}
+.view-toggle button.is-active { background: var(--card); color: var(--primary); box-shadow: var(--shadow); }
+
+/* 收藏夹卡片（小红书收藏夹风格） */
+.folder-card {
+  background: var(--card); border-radius: 18px; padding: 14px 16px 16px;
+  box-shadow: var(--shadow); cursor: pointer; transition: transform .12s ease;
+}
+.folder-card:active { transform: scale(.985); }
+.folder-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.folder-emoji { font-size: 20px; }
+.folder-name { font-size: 16px; font-weight: 700; }
+.folder-count {
+  margin-left: auto; font-size: 12px; color: var(--muted);
+  background: var(--bg); padding: 3px 10px; border-radius: 999px;
+}
+.folder-thumbs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.folder-thumb {
+  position: relative; aspect-ratio: 1 / 1; border-radius: 12px; overflow: hidden;
+  background: var(--primary-soft); color: var(--primary);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; font-weight: 700; border: 1px solid var(--line);
+  background-size: cover; background-position: center;
+}
+.folder-thumb.has-img { color: transparent; }
+.folder-thumb.more { background: var(--bg); color: var(--muted); font-size: 16px; }
+.folder-thumb.more::before { content: ""; }
+
+/* 收藏夹明细：返回 + 标题 */
+.folder-back {
+  align-self: flex-start; border: none; background: none; cursor: pointer;
+  color: var(--primary); font-size: 14px; font-weight: 500; padding: 4px 0; margin-bottom: 8px;
+}
+.folder-detail-title { font-size: 18px; font-weight: 700; margin: 0 0 12px; }
 
 /* 添加弹窗：截图识别 */
 .img-drop { border: 1.5px dashed var(--line); border-radius: 12px; padding: 14px; background: #faf9ff; cursor: pointer; transition: border-color .15s; }
