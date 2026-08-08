@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "收藏大脑 - 小红书收藏导出",
+  "version": "1.0.0",
+  "description": "在小红书「已收藏」页面抓取你的收藏笔记，导出为 JSON，一键导入「收藏大脑」做语义搜索。",
+  "permissions": ["activeTab", "downloads"],
+  "host_permissions": [
+    "https://www.xiaohongshu.com/*",
+    "https://edith.xiaohongshu.com/*",
+    "https://xhslink.com/*"
+  ],
+  "action": {
+    "default_title": "导出小红书收藏",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.xiaohongshu.com/*", "https://xhslink.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ],
+  "icons": {
+    "48": "icons/icon-192.png",
+    "128": "icons/icon-512.png"
+  }
+}

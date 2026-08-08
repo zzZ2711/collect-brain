@@ -28,6 +28,8 @@
   const $btnAddMine = document.getElementById("btn-add-mine");
   const $btnLoadDemo = document.getElementById("btn-load-demo");
   const $fab = document.getElementById("fab");
+  const $btnImport = document.getElementById("btn-import");
+  const $fileInput = document.getElementById("file-input");
   const $modal = document.getElementById("modal");
   const $form = document.getElementById("add-form");
   const $fTitle = document.getElementById("f-title");
@@ -387,6 +389,68 @@
     } finally {
       $btnLoadDemo.disabled = false;
       $btnLoadDemo.textContent = "浏览示例收藏（126 条演示）";
+    }
+  });
+
+  // ---- 导入 JSON（来自小红书插件或其他导出）----
+  $btnImport.addEventListener("click", () => $fileInput.click());
+  $fileInput.addEventListener("change", async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = ""; // 允许重复导入同一文件
+    if (!file) return;
+    if (!extractor) { toast("模型还在加载，请稍候再导入"); return; }
+    $btnImport.disabled = true;
+    try {
+      const text = await file.text();
+      let arr = JSON.parse(text);
+      if (!Array.isArray(arr)) arr = [arr];
+      // 规范化每条：兼容插件导出与手动格式
+      const norm = arr.map((s) => ({
+        title: (s.title || s.note_title || "").toString().slice(0, 120),
+        note: (s.note || s.content || s.desc || "").toString().slice(0, 2000),
+        author: (s.author || s.user || "").toString().slice(0, 80),
+        url: (s.url || s.link || "").toString().slice(0, 500),
+        type: (s.type || "").toString().slice(0, 40),
+        bucket: (s.bucket || "").toString().slice(0, 40),
+        tags: Array.isArray(s.tags) ? s.tags.slice(0, 20) : [],
+        source: s.source || "import",
+      })).filter((d) => d.title || d.note);
+      if (!norm.length) { toast("未识别到有效收藏"); return; }
+      const B = 16;
+      let ok = 0;
+      for (let i = 0; i < norm.length; i += B) {
+        const slice = norm.slice(i, i + B);
+        const texts = slice.map((d) => (d.title || "") + (d.note ? " " + d.note : ""));
+        const embs = await embed(texts, false);
+        for (let j = 0; j < slice.length; j++) {
+          const d = slice[j];
+          let cat = { bucket: d.bucket || "实用", type: d.type || "其他" };
+          if (!d.bucket || !d.type) {
+            const c = autoClassify(embs[j]);
+            cat = { bucket: d.bucket || c.bucket, type: d.type || c.type };
+          }
+          const doc = {
+            _id: "imp_" + Date.now() + "_" + i + "_" + j + "_" + Math.random().toString(36).slice(2, 6),
+            title: d.title, note: d.note, author: d.author, url: d.url,
+            type: cat.type, tags: d.tags, bucket: cat.bucket, source: d.source,
+            createdAt: Date.now(),
+          };
+          doc.embedding = embs[j];
+          await idbPut(doc);
+          const cid = await pushToCloud(doc);
+          if (cid) { doc._id = cid; await idbPut(doc); }
+          items.push(doc);
+          ok++;
+        }
+        $btnImport.textContent = "导入中 " + Math.min(ok, norm.length) + "/" + norm.length;
+      }
+      buildFilters(); render();
+      toast("已导入 " + ok + " 条收藏");
+    } catch (err) {
+      toast("导入失败：" + (err && err.message ? err.message : "文件格式错误"));
+    } finally {
+      $btnImport.disabled = false;
+      $btnImport.textContent = "导入 JSON";
     }
   });
   function toast(msg) {

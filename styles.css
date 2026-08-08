@@ -64,6 +64,15 @@ body {
 .filter-chip.is-active { background: var(--primary); color: #fff; border-color: var(--primary); }
 .filter-chip.clear-demo { color: var(--danger); border-color: #f3c2c4; }
 
+/* 头部操作区 */
+.header-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
+.header-btn {
+  height: 36px; padding: 0 16px; font-size: 13px; font-weight: 500; cursor: pointer;
+  background: var(--card); color: var(--primary); border: 1px solid var(--primary); border-radius: 999px;
+}
+.header-btn:hover { background: var(--primary-soft); }
+.header-btn:disabled { opacity: .55; cursor: default; }
+
 /* 结果列表 */
 .results { padding: 14px 16px 96px; display: flex; flex-direction: column; gap: 12px; }
 .card {
