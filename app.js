@@ -108,9 +108,11 @@
     if (!T) throw new Error("transformers.js 未加载");
     T.env.allowRemoteModels = false;
     T.env.localModelPath = "/models/";
+    // transformers.js v2.17.1 顶层 env 默认没有 wasm 字段，必须先初始化
+    T.env.wasm = T.env.wasm || {};
     T.env.wasm.wasmPaths = "/lib/transformers/";
     // 静态托管无 COOP/COEP，禁用多线程 wasm 避免依赖 SharedArrayBuffer
-    if (T.env.wasm && "numThreads" in T.env.wasm) T.env.wasm.numThreads = 1;
+    T.env.wasm.numThreads = 1;
     extractor = await T.pipeline("feature-extraction", "bge-small-zh-v1.5", {
       quantized: true,
       progress_callback: (p) => {
