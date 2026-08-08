@@ -82,6 +82,21 @@ def fetch_model():
         download_file(url, os.path.join(ROOT, "models", "bge-small-zh-v1.5", rel))
 
 
+def fetch_image_model():
+    base = "https://hf-mirror.com/Xenova/mobilenetv2-1.0-224/resolve/main"
+    files = {
+        "config.json": f"{base}/config.json",
+        "tokenizer.json": f"{base}/tokenizer.json",
+        "tokenizer_config.json": f"{base}/tokenizer_config.json",
+        "special_tokens_map.json": f"{base}/special_tokens_map.json",
+        "preprocessor_config.json": f"{base}/preprocessor_config.json",
+        "onnx/model_quantized.onnx": f"{base}/onnx/model_quantized.onnx",
+    }
+    log(">> image model files (mobilenetv2-1.0-224, 端侧截图识别)")
+    for rel, url in files.items():
+        download_file(url, os.path.join(ROOT, "models", "mobilenetv2-1.0-224", rel))
+
+
 def fetch_transformers():
     log(">> transformers.js + ONNX WASM (from npm tarball)")
     tgz_url = "https://registry.npmmirror.com/@xenova/transformers/-/transformers-2.17.1.tgz"
@@ -117,6 +132,7 @@ def main():
     log("收藏大脑 · 拉取大体积资源")
     log("=" * 60)
     fetch_model()
+    fetch_image_model()
     fetch_transformers()
     log("=" * 60)
     log("完成。现在用任意静态服务器托管本目录即可：")

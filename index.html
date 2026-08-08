@@ -66,6 +66,23 @@
           <span>标题</span>
           <input id="f-title" type="text" maxlength="120" placeholder="一句话概括" required />
         </label>
+        <div class="field">
+          <span>截图识别（可选）</span>
+          <div class="img-drop" id="img-drop">
+            <input id="f-image" type="file" accept="image/*" hidden />
+            <div id="img-preview" class="img-preview" hidden>
+              <img id="img-preview-img" alt="预览" />
+              <button type="button" id="img-remove" class="img-remove" aria-label="移除">×</button>
+            </div>
+            <div id="img-placeholder" class="img-placeholder">
+              <div class="img-ico">🖼️</div>
+              <div>点击上传截图，或用手机截图后粘贴（Ctrl/⌘+V）</div>
+              <button type="button" id="img-pick" class="img-pick">选择图片</button>
+            </div>
+          </div>
+          <button type="button" id="img-recognize" class="img-recognize" hidden>🤖 AI 识别图片并自动填分类</button>
+          <div class="img-rec-result" id="img-rec-result" hidden></div>
+        </div>
         <label class="field">
           <span>内容 / 笔记</span>
           <textarea id="f-note" rows="4" maxlength="2000" placeholder="记下要点，保存后会自动归类"></textarea>

@@ -44,10 +44,21 @@
   const $fNote = document.getElementById("f-note");
   const $autoCat = document.getElementById("auto-cat");
   const $saveBtn = document.getElementById("save-btn");
+  const $fImage = document.getElementById("f-image");
+  const $imgDrop = document.getElementById("img-drop");
+  const $imgPreview = document.getElementById("img-preview");
+  const $imgPreviewImg = document.getElementById("img-preview-img");
+  const $imgPlaceholder = document.getElementById("img-placeholder");
+  const $imgPick = document.getElementById("img-pick");
+  const $imgRemove = document.getElementById("img-remove");
+  const $imgRecognize = document.getElementById("img-recognize");
+  const $imgRecResult = document.getElementById("img-rec-result");
   const $toast = document.getElementById("toast");
 
   // ---- state ----
   let extractor = null;
+  let classifier = null;        // 图像分类 pipeline（端侧 MobileNetV2）
+  let selectedImage = null;     // 当前选中的图片（DataURL / Blob URL）
   let items = [];
   let currentFilter = "全部";
   let cloudReady = false;
@@ -141,6 +152,75 @@
     const inputs = texts.map((t) => (isQuery ? QUERY_PREFIX + t : t));
     const out = await extractor(inputs, { pooling: "cls", normalize: true });
     return out.tolist();
+  }
+
+  // ---- 图像分类（端侧 MobileNetV2，懒加载，不阻塞首屏）----
+  let classifierLoading = false;
+  async function ensureClassifier() {
+    if (classifier) return classifier;
+    if (classifierLoading) { while (classifierLoading) await new Promise((r) => setTimeout(r, 200)); return classifier; }
+    classifierLoading = true;
+    try {
+      const T = window.transformers;
+      if (!T) throw new Error("transformers.js 未加载");
+      classifier = await T.pipeline("image-classification", "mobilenetv2-1.0-224", {
+        quantized: true,
+        progress_callback: (p) => {
+          if (p && p.status === "progress" && p.total) {
+            const pct = Math.round((p.loaded / p.total) * 100);
+            $imgRecognize.textContent = "🤖 正在加载识别模型 " + pct + "%";
+          }
+        },
+      });
+      return classifier;
+    } catch (e) {
+      classifier = null;
+      throw e;
+    } finally {
+      classifierLoading = false;
+    }
+  }
+  // 英文 ImageNet 类名 -> 中文收藏分类（轻量映射，覆盖常见场景）
+  const IMG_LABEL_TO_BUCKET = {
+    "espresso": "美食", "coffee": "美食", "cup": "美食", "bowl": "美食", "pizza": "美食",
+    "hamburger": "美食", "banana": "美食", "apple": "美食", "orange": "美食", "food": "美食",
+    "restaurant": "美食", "dining": "美食", "menu": "美食", "cheese": "美食", "wine": "美食",
+    "book": "学习", "books": "学习", "laptop": "技术", "desktop": "技术", "keyboard": "技术",
+    "monitor": "技术", "mouse": "技术", "cellphone": "技术", "screen": "技术", "website": "技术",
+    "notebook": "学习", "pen": "学习", "calculator": "学习", "globe": "旅行", "map": "旅行",
+    "beach": "旅行", "mountain": "旅行", "skyscraper": "旅行", "hotel": "旅行", "airplane": "旅行",
+    "train": "旅行", "suitcase": "旅行", "backpack": "旅行", "dog": "生活", "cat": "生活",
+    "person": "生活", "chair": "生活", "sofa": "生活", "bed": "生活", "clock": "生活",
+    "vase": "生活", "plant": "生活", "flower": "生活", "shirt": "穿搭", "dress": "穿搭",
+    "sneaker": "穿搭", "shoe": "穿搭", "sunglasses": "穿搭", "handbag": "穿搭", "jacket": "穿搭",
+    "bicycle": "运动", "skateboard": "运动", "ski": "运动", "surfboard": "运动", "racket": "运动",
+    "car": "生活", "truck": "生活", "bus": "生活", "motorcycle": "生活",
+  };
+  const IMG_LABEL_TO_TYPE = {
+    "book": "阅读", "books": "阅读", "laptop": "数码", "desktop": "数码", "keyboard": "数码",
+    "cellphone": "数码", "screen": "数码", "monitor": "数码", "mouse": "数码",
+    "coffee": "探店", "espresso": "探店", "restaurant": "探店", "pizza": "食谱", "food": "食谱",
+    "dog": "萌宠", "cat": "萌宠", "plant": "家居", "flower": "家居", "vase": "家居",
+    "beach": "攻略", "mountain": "攻略", "hotel": "攻略", "map": "攻略", "suitcase": "攻略",
+    "shirt": "穿搭", "dress": "穿搭", "sneaker": "穿搭", "shoe": "穿搭", "handbag": "穿搭",
+    "bicycle": "运动", "ski": "运动", "skateboard": "运动", "surfboard": "运动",
+  };
+  async function recognizeImage(imgEl) {
+    if (!imgEl) throw new Error("没有可识别的图片");
+    const clf = await ensureClassifier();
+    const out = await clf(imgEl, { topk: 5 });
+    return (out || []).map((o) => ({ label: (o.label || "").split(",")[0].trim(), score: o.score }));
+  }
+  // 根据图像标签猜测中文分类，并尽量回填标题
+  function mapImageToCategory(topLabels) {
+    let bucket = "实用", type = "其他", bestLabel = "", bestScore = 0;
+    for (const it of topLabels) {
+      const key = it.label.toLowerCase();
+      if (IMG_LABEL_TO_BUCKET[key]) { bucket = IMG_LABEL_TO_BUCKET[key]; }
+      if (IMG_LABEL_TO_TYPE[key]) { type = IMG_LABEL_TO_TYPE[key]; }
+      if (it.score > bestScore) { bestScore = it.score; bestLabel = it.label; }
+    }
+    return { bucket, type, bestLabel, bestScore };
   }
 
   // ---- IndexedDB ----
@@ -373,10 +453,79 @@
     if (!extractor) { toast("模型还在加载，请稍候"); return; }
     $modal.hidden = false;
     $fTitle.value = ""; $fNote.value = ""; pendingEmb = null;
+    resetImageState();
     $autoCat.textContent = "自动分类：输入标题后自动分析";
     setTimeout(() => $fTitle.focus(), 50);
   }
-  function closeModal() { $modal.hidden = true; }
+  function closeModal() {
+    $modal.hidden = true;
+    resetImageState();
+  }
+  function resetImageState() {
+    selectedImage = null;
+    $fImage.value = "";
+    $imgPreview.hidden = true;
+    $imgPlaceholder.hidden = false;
+    $imgRecognize.hidden = true;
+    $imgRecResult.hidden = true;
+    $imgRecognize.textContent = "🤖 AI 识别图片并自动填分类";
+  }
+  function setImageFile(file) {
+    if (!file || !file.type || file.type.indexOf("image/") !== 0) { toast("请选择图片文件"); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      selectedImage = reader.result;
+      $imgPreviewImg.src = reader.result;
+      $imgPreview.hidden = false;
+      $imgPlaceholder.hidden = true;
+      $imgRecognize.hidden = false;
+      $imgRecResult.hidden = true;
+    };
+    reader.readAsDataURL(file);
+  }
+  $imgPick.addEventListener("click", () => $fImage.click());
+  $imgDrop.addEventListener("click", (e) => {
+    if (e.target === $imgDrop || e.target === $imgPlaceholder) $fImage.click();
+  });
+  $fImage.addEventListener("change", (e) => { const f = e.target.files && e.target.files[0]; if (f) setImageFile(f); });
+  $imgRemove.addEventListener("click", (e) => { e.stopPropagation(); resetImageState(); });
+  // 支持 Ctrl/⌘+V 粘贴截图
+  document.addEventListener("paste", (e) => {
+    if ($modal.hidden) return;
+    const itemsP = e.clipboardData && e.clipboardData.items;
+    if (!itemsP) return;
+    for (const it of itemsP) {
+      if (it.type && it.type.indexOf("image/") === 0) { setImageFile(it.getAsFile()); break; }
+    }
+  });
+  $imgRecognize.addEventListener("click", async () => {
+    if (!selectedImage) { toast("请先选择或粘贴截图"); return; }
+    $imgRecognize.disabled = true;
+    $imgRecResult.hidden = false;
+    $imgRecResult.textContent = "识别中…";
+    try {
+      const imgEl = new Image();
+      imgEl.src = selectedImage;
+      await new Promise((res, rej) => { imgEl.onload = res; imgEl.onerror = rej; });
+      const top = await recognizeImage(imgEl);
+      const { bucket, type, bestLabel } = mapImageToCategory(top);
+      // 仅在标题为空时，用识别出的主标签做建议标题
+      if (!$fTitle.value.trim()) {
+        $fTitle.value = bestLabel || "";
+        previewClassify();
+      }
+      $imgRecResult.innerHTML =
+        "识别结果：<b>" + (bestLabel || "未知") + "</b> → 建议分类 「" + bucket + " / " + type + "」" +
+        "<br><span style='opacity:.7;font-size:12px'>Top: " +
+        top.slice(0, 3).map((t) => t.label + " " + (t.score * 100).toFixed(0) + "%").join(" · ") + "</span>";
+      toast("已识别并建议分类");
+    } catch (e) {
+      $imgRecResult.textContent = "识别模型未就绪（需联网下载端侧模型）。可手动填标题后自动归类。";
+    } finally {
+      $imgRecognize.disabled = false;
+      $imgRecognize.textContent = "🤖 AI 识别图片并自动填分类";
+    }
+  });
   $fab.addEventListener("click", openModal);
   $modal.querySelectorAll("[data-close]").forEach((el) => el.addEventListener("click", closeModal));
 

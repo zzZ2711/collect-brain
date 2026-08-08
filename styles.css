@@ -171,3 +171,16 @@ body {
 
 /* recv 落地页 */
 .recv-detail { margin-top: 14px; font-size: 12px; color: var(--muted); line-height: 1.5; word-break: break-all; }
+
+/* 添加弹窗：截图识别 */
+.img-drop { border: 1.5px dashed var(--line); border-radius: 12px; padding: 14px; background: #faf9ff; cursor: pointer; transition: border-color .15s; }
+.img-drop:hover { border-color: var(--primary); }
+.img-placeholder { display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; text-align: center; }
+.img-ico { font-size: 30px; }
+.img-pick { margin-top: 4px; font-size: 13px; color: var(--primary); background: var(--primary-soft); border: none; border-radius: 8px; padding: 6px 14px; cursor: pointer; }
+.img-preview { position: relative; display: inline-block; width: 100%; }
+.img-preview img { width: 100%; max-height: 220px; object-fit: contain; border-radius: 10px; background: #fff; }
+.img-remove { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; border-radius: 50%; border: none; background: rgba(0,0,0,.55); color: #fff; font-size: 18px; line-height: 1; cursor: pointer; }
+.img-recognize { margin-top: 10px; width: 100%; font-size: 14px; color: #fff; background: var(--primary); border: none; border-radius: 10px; padding: 10px; cursor: pointer; }
+.img-recognize:disabled { opacity: .7; cursor: default; }
+.img-rec-result { margin-top: 8px; font-size: 13px; color: var(--text); background: var(--primary-soft); border-radius: 8px; padding: 8px 10px; line-height: 1.5; }
